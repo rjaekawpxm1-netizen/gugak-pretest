@@ -16,4 +16,3 @@ data/raw/
 .DS_Store
 .idea/
 .vscode/
-data/processed/segments/
