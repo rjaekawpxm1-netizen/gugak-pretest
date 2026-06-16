@@ -10,6 +10,8 @@ data/raw/
 # Streamlit
 .streamlit/secrets.toml
 
+!data/raw/archive_lists/
+!data/raw/archive_lists/**
 # OS / editor
 .DS_Store
 .idea/
