@@ -153,9 +153,7 @@ st.divider()
 # ── 파일별 상세 (포락선) ─────────────────────────────────────
 st.divider()
 st.subheader("파일별 상세 진단")
-st.caption("에너지 포락선과 AI 적합성 항목별 판정. 원본 음원이 로컬에 있을 때 이용 가능.")
 
-# metadata CSV에서 측정값을 그대로 표시 (원본 파일 없이도 동작)
 sel = st.selectbox("음원 선택", meta["file"].tolist())
 row = meta[meta["file"] == sel].iloc[0]
 
@@ -168,10 +166,23 @@ m[4].metric("저에너지", f"{row['low_energy_ratio']}%")
 
 st.info(f"AI 학습 적합성 판정: **{row['ai_grade']}**")
 
-# 에너지 포락선은 원본 파일 있을 때만
-path = AUDIO_KOGL1 / sel
-if path.exists():
-    props, env_t, env_db = measure(path)
+# 포락선: 원본 > 세그먼트 > 없음 순으로 시도
+from src.config import SEGMENTS_DIR
+import soundfile as sf
+
+src_path = AUDIO_KOGL1 / sel
+seg_dir  = SEGMENTS_DIR / Path(sel).stem
+seg_files = sorted(seg_dir.glob("*.wav")) if seg_dir.exists() else []
+
+wav_path = None
+wav_label = ""
+if src_path.exists():
+    wav_path, wav_label = src_path, "원본"
+elif seg_files:
+    wav_path, wav_label = seg_files[0], f"세그먼트(seg01, {seg_files[0].name})"
+
+if wav_path:
+    props, env_t, env_db = measure(wav_path)
     checks, grade = assess(props)
     st.dataframe(pd.DataFrame(checks, columns=["항목", "판정", "사유"]),
                  hide_index=True, use_container_width=True)
@@ -179,7 +190,8 @@ if path.exists():
     fig.add_trace(go.Scatter(x=env_t, y=env_db, mode="lines", name="에너지(dBFS)"))
     fig.add_hline(y=SILENCE_DB, line_dash="dash", line_color="red",
                   annotation_text=f"무음 임계 {SILENCE_DB}dBFS")
-    fig.update_layout(height=340, xaxis_title="시간(초)", yaxis_title="dBFS", showlegend=False)
+    fig.update_layout(height=340, xaxis_title="시간(초)", yaxis_title="dBFS", showlegend=False,
+                      title=f"에너지 포락선 ({wav_label})")
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.caption("에너지 포락선 그래프는 로컬 실행 시 표시됩니다.")
