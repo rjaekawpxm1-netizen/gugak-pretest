@@ -100,8 +100,21 @@ if menu == "📊 종합 대시보드":
     st.markdown("""<div class="req-box">
     🗂️ <b>이 대시보드는 무엇인가요?</b><br>
     국립국악원이 공개한 음원·아카이브 데이터를 직접 내려받아 품질·AI 학습 적합성을 분석했습니다.
-    아래 숫자와 발견은 모두 '하겠습니다'가 아니라 <b>이미 해본 결과</b>입니다.
+    아래 숫자와 발견은 모두 '하겠습니다'가 아니라 <b>이미 해본 결과</b>입니다.<br><br>
+    📌 <b>이 사업은 무엇인가요?</b><br>
+    국악 음원(16,721건)과 이미지(1,685건)를 누구나 쓸 수 있도록 개방하고,
+    AI 학습용 데이터로 가공하는 사업입니다. 저희는 제안서를 내기 전에
+    공개된 데이터를 직접 받아 아래 4단계를 미리 수행했습니다.
     </div>""", unsafe_allow_html=True)
+
+    st.markdown("""
+| 단계 | 한 일 | 화면 |
+|:---:|---|---|
+| 1️⃣ 현황 파악 | 어떤 데이터가 어떤 형태로 있는지 직접 확인 | 📁 데이터 현황 |
+| 2️⃣ 품질 진단 | 실제 파일을 열어 오류·누락·이상값 자동 탐지 | 🔍 메타데이터 품질진단 |
+| 3️⃣ 가공 준비도 | 음원 50개를 측정해 AI 학습에 쓸 수 있는지 판단 | 🎵 음원 AI 학습 적합성 |
+| 4️⃣ 실제 가공 | 불균질한 음원을 표준 포맷으로 직접 변환·분할 | ✂️ AI 가공 결과 |
+""")
 
     k = st.columns(5)
     k[0].metric("분석 데이터", f"{len(vr)+len(ex)+len(meta)}건")
@@ -145,6 +158,7 @@ if menu == "📊 종합 대시보드":
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown("**메타데이터 오류율 Top 5**")
+        st.caption("현행 개방 데이터에서 발견된 오류 항목 중 비율이 높은 순서입니다. 100%는 전수 오류를 뜻합니다.")
         top5 = errors.head(5)
         fig = px.bar(top5, x="비율%", y="진단항목", orientation="h",
                      color="비율%", color_continuous_scale="Reds", text="건수")
@@ -153,6 +167,7 @@ if menu == "📊 종합 대시보드":
         st.plotly_chart(fig, use_container_width=True)
     with col2:
         st.markdown("**음원 샘플레이트 분포**")
+        st.caption("직접 받은 음원 50개의 녹음 품질 규격이 3가지로 섞여 있습니다. AI 학습 전 통일이 필요합니다.")
         sr = meta["samplerate"].astype(str).value_counts().reset_index()
         sr.columns = ["샘플레이트","건수"]
         fig2 = px.pie(sr, names="샘플레이트", values="건수",
@@ -161,6 +176,7 @@ if menu == "📊 종합 대시보드":
         st.plotly_chart(fig2, use_container_width=True)
     with col3:
         st.markdown("**세그먼트 AI 학습 적합성**")
+        st.caption("가공 후 87개 조각 중 즉시 학습 가능한 비율입니다. 초록(학습 적합)이 많을수록 좋습니다.")
         if mf is not None:
             exc = len(mf)-fit_cnt-short_cnt
             gdf = pd.DataFrame({
@@ -253,6 +269,12 @@ elif menu == "🔍 메타데이터 품질진단":
     📋 <b>대응 요구사항: OSR-001 (현황분석) + DQR-001~004 (품질진단·개선계획·개선수행)</b><br>
     목록만 본 게 아니라 실제 CSV를 내려받아 결측·중복·이상값·URL 오류를 자동 전수 진단했습니다.
     현행 개방 데이터조차 이런 결함이 있다 → 신규 개방 데이터는 본 진단 규칙으로 사전 차단합니다.
+    </div>""", unsafe_allow_html=True)
+
+    st.markdown("""<div class="term-box">
+    💡 <b>메타데이터란?</b> 데이터를 설명하는 데이터입니다.
+    예를 들어 음원 파일의 메타데이터는 제목·악기명·장르·파일경로·저작권 유형 등입니다.
+    메타데이터가 부실하면 API 검색도, AI 라벨링도, 개방DB 구축도 불가능합니다.
     </div>""", unsafe_allow_html=True)
 
     k = st.columns(4)
@@ -463,13 +485,16 @@ elif menu == "✂️ AI 가공 결과":
 
     k = st.columns(6)
     k[0].metric("원본 음원", f"{total_src}개")
-    k[1].metric("세그먼트 산출", f"{total_seg}개")
-    k[2].metric("학습 적합(15~30s)", f"{len(fit3)}개")
-    k[3].metric("보완필요(3~14s)", f"{len(short3)}개")
+    k[1].metric("세그먼트 산출", f"{total_seg}개", help="원본을 잘라 만든 AI 학습용 조각 수")
+    k[2].metric("학습 적합(15~30s)", f"{len(fit3)}개", help="길이 15~30초, 즉시 AI 학습 가능")
+    k[3].metric("보완필요(3~14s)", f"{len(short3)}개", help="짧아서 병합 또는 별도 처리 필요")
     k[4].metric("샘플레이트 통일", "✅ 22050Hz" if (mf["out_sr"]==PROCESS_SR).all() else "❌")
     k[5].metric("채널 통일", "✅ mono" if (mf["out_ch"]==1).all() else "❌")
 
     st.markdown("""<div class="term-box">
+    💡 <b>세그먼트란?</b> 긴 음원을 AI 학습에 적합한 길이(15~30초)로 잘라낸 조각입니다.
+    단순히 일정 간격으로 자르면 소리가 없는 구간이 섞입니다.
+    저희는 소리가 작아지는 지점(무음 임계)을 찾아 그 지점에서 분할합니다.<br><br>
     💡 <b>가공 4단계</b><br>
     ① <b>다운믹스</b>: stereo → mono<br>
     ② <b>리샘플</b>: 44100/48000/96000Hz → 22050Hz 통일<br>
