@@ -86,55 +86,66 @@ with col2:
     fig2.update_layout(height=320, showlegend=False)
     st.plotly_chart(fig2, use_container_width=True)
 
-# ---------------- 파일별 Before/After 파형 ----------------
+# ---------------- 파일별 Before/After ----------------
 st.divider()
-st.subheader("파일별 Before / After 파형")
+st.subheader("파일별 Before / After")
+st.caption("가공 전후 속성 비교. 파형 시각화는 로컬 실행 시 표시됩니다.")
 sources = sorted(mf["source"].unique().tolist())
 sel = st.selectbox("원본 음원 선택", sources)
 
 src_path = AUDIO_KOGL1 / sel
 seg_dir = SEGMENTS_DIR / Path(sel).stem
 seg_files = sorted(seg_dir.glob("*.wav")) if seg_dir.exists() else []
+sel_row = mf[mf["source"] == sel].iloc[0]
 
-if not src_path.exists():
-    st.warning(f"원본 파일 없음: {src_path}")
-    st.stop()
+# 항상 표시: manifest 기반 before/after 수치 비교
+ba = pd.DataFrame({
+    "항목": ["샘플레이트", "채널", "음량(RMS)"],
+    "가공 전": [f"{sel_row['src_sr']}Hz",
+               f"{'stereo' if sel_row['src_ch']==2 else 'mono'}({sel_row['src_ch']}ch)",
+               f"{sel_row['src_rms_db']}dBFS"],
+    "가공 후": [f"{sel_row['out_sr']}Hz", "mono(1ch)", "약 -20dBFS"],
+})
+st.dataframe(ba, hide_index=True, use_container_width=True)
 
-# Before: 원본 (최대 30초만 표시)
-raw, sr_raw = sf.read(str(src_path))
-raw_mono = raw.mean(axis=1) if raw.ndim > 1 else raw
-preview_len = min(len(raw_mono), sr_raw * 30)
-t_raw = np.arange(preview_len) / sr_raw
-rms_before = round(float(20 * np.log10(np.sqrt(np.mean(raw_mono ** 2)) + 1e-12)), 1)
+seg_info = mf[mf["source"] == sel][["segment", "start_sec", "dur_sec", "out_rms_db"]]
+st.dataframe(seg_info.rename(columns={
+    "segment": "세그먼트", "start_sec": "시작(s)",
+    "dur_sec": "길이(s)", "out_rms_db": "RMS(dBFS)"}),
+    hide_index=True, use_container_width=True)
 
-# After: 첫 번째 세그먼트
-if seg_files:
-    seg, sr_seg = sf.read(str(seg_files[0]))
-    t_seg = np.arange(len(seg)) / sr_seg
-    rms_after = round(float(20 * np.log10(np.sqrt(np.mean(seg ** 2)) + 1e-12)), 1)
-else:
-    seg = None
+# 파형은 원본 파일 있을 때만
+if src_path.exists():
+    raw, sr_raw = sf.read(str(src_path))
+    raw_mono = raw.mean(axis=1) if raw.ndim > 1 else raw
+    preview_len = min(len(raw_mono), sr_raw * 30)
+    t_raw = np.arange(preview_len) / sr_raw
+    rms_before = round(float(20 * np.log10(np.sqrt(np.mean(raw_mono ** 2)) + 1e-12)), 1)
 
-c1, c2 = st.columns(2)
-with c1:
-    st.markdown(f"**Before** — 원본 앞 30초  \n"
-                f"`{sr_raw}Hz / {'stereo' if raw.ndim > 1 else 'mono'} / {rms_before}dBFS`")
-    fig3 = go.Figure(go.Scatter(x=t_raw, y=raw_mono[:preview_len],
-                                mode="lines", line=dict(width=0.8, color="#1565C0")))
-    fig3.update_layout(height=260, xaxis_title="시간(초)", yaxis_title="진폭",
-                       margin=dict(t=10, b=40))
-    st.plotly_chart(fig3, use_container_width=True)
-with c2:
-    if seg is not None:
-        st.markdown(f"**After** — seg01 ({round(len(seg)/sr_seg,1)}s)  \n"
-                    f"`{sr_seg}Hz / mono / {rms_after}dBFS`")
-        fig4 = go.Figure(go.Scatter(x=t_seg, y=seg,
-                                    mode="lines", line=dict(width=0.8, color="#2E7D32")))
-        fig4.update_layout(height=260, xaxis_title="시간(초)", yaxis_title="진폭",
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f"**Before** — 원본 앞 30초  \n"
+                    f"`{sr_raw}Hz / {'stereo' if raw.ndim > 1 else 'mono'} / {rms_before}dBFS`")
+        fig3 = go.Figure(go.Scatter(x=t_raw, y=raw_mono[:preview_len],
+                                    mode="lines", line=dict(width=0.8, color="#1565C0")))
+        fig3.update_layout(height=260, xaxis_title="시간(초)", yaxis_title="진폭",
                            margin=dict(t=10, b=40))
-        st.plotly_chart(fig4, use_container_width=True)
-    else:
-        st.info("세그먼트 없음 (짧거나 무음 파일)")
+        st.plotly_chart(fig3, use_container_width=True)
+    with c2:
+        if seg_files:
+            seg, sr_seg = sf.read(str(seg_files[0]))
+            rms_after = round(float(20 * np.log10(np.sqrt(np.mean(seg ** 2)) + 1e-12)), 1)
+            t_seg = np.arange(len(seg)) / sr_seg
+            st.markdown(f"**After** — seg01 ({round(len(seg)/sr_seg,1)}s)  \n"
+                        f"`{sr_seg}Hz / mono / {rms_after}dBFS`")
+            fig4 = go.Figure(go.Scatter(x=t_seg, y=seg,
+                                        mode="lines", line=dict(width=0.8, color="#2E7D32")))
+            fig4.update_layout(height=260, xaxis_title="시간(초)", yaxis_title="진폭",
+                               margin=dict(t=10, b=40))
+            st.plotly_chart(fig4, use_container_width=True)
+else:
+    st.caption("파형 비교 그래프는 로컬 실행 시 표시됩니다.")
+
 
 # 세그먼트 목록
 if seg_files:

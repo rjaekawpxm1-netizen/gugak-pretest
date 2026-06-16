@@ -151,29 +151,35 @@ with tab3:
 st.divider()
 
 # ── 파일별 상세 (포락선) ─────────────────────────────────────
+st.divider()
 st.subheader("파일별 상세 진단")
-sel = st.selectbox("음원 선택", meta["file"].tolist())
-path = AUDIO_KOGL1 / sel
-if not path.exists():
-    st.warning(f"원본 파일 없음: {path}"); st.stop()
+st.caption("에너지 포락선과 AI 적합성 항목별 판정. 원본 음원이 로컬에 있을 때 이용 가능.")
 
-props, env_t, env_db = measure(path)
-checks, grade = assess(props)
+# metadata CSV에서 측정값을 그대로 표시 (원본 파일 없이도 동작)
+sel = st.selectbox("음원 선택", meta["file"].tolist())
+row = meta[meta["file"] == sel].iloc[0]
 
 m = st.columns(5)
-m[0].metric("길이", f"{props['duration']}s")
-m[1].metric("샘플레이트", f"{props['samplerate']}Hz")
-m[2].metric("채널", f"{props['channels']}ch")
-m[3].metric("RMS", f"{props['rms_db']}dBFS")
-m[4].metric("저에너지", f"{props['low_energy_ratio']}%")
+m[0].metric("길이", f"{row['duration_sec']}s")
+m[1].metric("샘플레이트", f"{row['samplerate']}Hz")
+m[2].metric("채널", f"{row['channels']}ch")
+m[3].metric("RMS", f"{row['rms_db']}dBFS")
+m[4].metric("저에너지", f"{row['low_energy_ratio']}%")
 
-(st.success if grade == "학습 적합" else st.warning)(f"종합 판정: {grade}")
-st.dataframe(pd.DataFrame(checks, columns=["항목", "판정", "사유"]),
-             hide_index=True, use_container_width=True)
+st.info(f"AI 학습 적합성 판정: **{row['ai_grade']}**")
 
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=env_t, y=env_db, mode="lines", name="에너지(dBFS)"))
-fig.add_hline(y=SILENCE_DB, line_dash="dash", line_color="red",
-              annotation_text=f"무음 임계 {SILENCE_DB}dBFS")
-fig.update_layout(height=340, xaxis_title="시간(초)", yaxis_title="dBFS", showlegend=False)
-st.plotly_chart(fig, use_container_width=True)
+# 에너지 포락선은 원본 파일 있을 때만
+path = AUDIO_KOGL1 / sel
+if path.exists():
+    props, env_t, env_db = measure(path)
+    checks, grade = assess(props)
+    st.dataframe(pd.DataFrame(checks, columns=["항목", "판정", "사유"]),
+                 hide_index=True, use_container_width=True)
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=env_t, y=env_db, mode="lines", name="에너지(dBFS)"))
+    fig.add_hline(y=SILENCE_DB, line_dash="dash", line_color="red",
+                  annotation_text=f"무음 임계 {SILENCE_DB}dBFS")
+    fig.update_layout(height=340, xaxis_title="시간(초)", yaxis_title="dBFS", showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.caption("에너지 포락선 그래프는 로컬 실행 시 표시됩니다.")
