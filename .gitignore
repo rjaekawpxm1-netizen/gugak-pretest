@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Raw source data: 용량 + 저작권(공공누리) 때문에 커밋 금지
+data/raw/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
